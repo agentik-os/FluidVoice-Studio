@@ -33,6 +33,7 @@ jobs:
           relevant:
             - 'Sources/**'
             - 'Tests/**'
+            - 'Tests/run_remote_mic_tests.sh'
             - 'Fluid.xcodeproj/**'
             - 'Package.swift'
             - 'Package.resolved'

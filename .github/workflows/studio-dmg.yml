@@ -1,0 +1,104 @@
+name: FluidVoice Studio DMG
+
+on:
+  pull_request:
+    paths:
+      - "Sources/**"
+      - "Fluid.xcodeproj/**"
+      - "Package.swift"
+      - "Package.resolved"
+      - "Info.plist"
+      - "Fluid.entitlements"
+      - ".github/workflows/studio-dmg.yml"
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: studio-dmg-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dmg:
+    name: Build DMG
+    runs-on: macos-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Import signing certificate when available
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "${APPLE_CERTIFICATE_BASE64}" ]; then
+            echo "No signing certificate secret; the DMG will be unsigned."
+            echo "SIGN=0" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/studio.keychain-db"
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p studio "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security unlock-keychain -p studio "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k studio "$KEYCHAIN_PATH"
+          echo "SIGN=1" >> "$GITHUB_ENV"
+
+      - name: Build FluidVoice
+        run: |
+          sign_args=(CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY=)
+          if [ "${SIGN:-0}" = "1" ]; then
+            sign_args=(CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY="Apple Development")
+          fi
+          xcodebuild \
+            -project Fluid.xcodeproj \
+            -scheme Fluid \
+            -configuration Release \
+            -destination "platform=macOS" \
+            -derivedDataPath build/dmg-dd \
+            "${sign_args[@]}" \
+            build
+
+      - name: Create DMG
+        run: |
+          app="build/dmg-dd/Build/Products/Release/FluidVoice.app"
+          test -d "$app"
+          version="$(defaults read "$PWD/$app/Contents/Info" CFBundleShortVersionString)"
+          stage="build/dmg-stage"
+          rm -rf "$stage"
+          mkdir -p "$stage"
+          cp -R "$app" "$stage/FluidVoice.app"
+          ln -s /Applications "$stage/Applications"
+          rm -f "build/FluidVoice-Studio-${version}.dmg"
+          hdiutil create \
+            -volname "FluidVoice Studio" \
+            -srcfolder "$stage" \
+            -ov \
+            -format UDZO \
+            "build/FluidVoice-Studio-${version}.dmg"
+          cp "build/FluidVoice-Studio-${version}.dmg" build/FluidVoice-Studio.dmg
+          shasum -a 256 "build/FluidVoice-Studio-${version}.dmg"
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: FluidVoice-Studio-dmg
+          path: build/FluidVoice-Studio-*.dmg
+          if-no-files-found: error
+
+      - name: Publish a tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/FluidVoice-Studio-*.dmg

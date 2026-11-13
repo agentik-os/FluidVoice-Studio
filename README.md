@@ -12,7 +12,15 @@
 
 Open source voice-to-text dictation app for macOS with on-device AI enhancement.
 
-**Install with Homebrew:** `brew install --cask fluidvoice`
+> **FluidVoice Studio** is [agentik-os/FluidVoice-Studio](https://github.com/agentik-os/FluidVoice-Studio), a GPLv3 fork of [altic-dev/FluidVoice](https://github.com/altic-dev/FluidVoice). The upstream app is unchanged in spirit; the fork adds paired remote microphones, a Screen Sharing hotkey, and a single-app install. Attribution for FluidVoice stays with Altic. See [What this fork adds](#what-this-fork-adds).
+
+**Install this fork:**
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/agentik-os/FluidVoice-Studio/main/packaging/install-fluidvoice-studio.sh)"
+```
+
+**Upstream install, without Studio features:** `brew install --cask fluidvoice`
 
 **Manual download:** [latest release](https://github.com/altic-dev/FluidVoice/releases/latest)
 
@@ -21,7 +29,7 @@ Open source voice-to-text dictation app for macOS with on-device AI enhancement.
 >
 > Our official website is [altic.dev/fluid](https://altic.dev/fluid). Our official domains also include **fluidvoice.com** and **fluidvoice.app**.
 >
-> For official downloads, use this repository's [GitHub Releases](https://github.com/altic-dev/FluidVoice/releases).
+> Studio builds are published from this fork's [GitHub Releases](https://github.com/agentik-os/FluidVoice-Studio/releases). Upstream FluidVoice releases stay on [altic-dev/FluidVoice](https://github.com/altic-dev/FluidVoice/releases).
 >
 > If **fluidvoice.org** appears in your search results claiming to be our official website, please report the misleading result to the search provider.
 
@@ -33,6 +41,87 @@ Open source voice-to-text dictation app for macOS with on-device AI enhancement.
 > This project is free and open source under GPLv3. If FluidVoice is useful to you, please star the repository — it helps visibility and keeps development going.
 
 ---
+
+## What this fork adds
+
+FluidVoice Studio keeps the dictation app and adds a private way for one Mac to use another's microphone. On a new Mac you install the app once. There is no BlackHole driver, no extra LaunchAgent, and no pile of scripts to keep running. Sharing and discovery run inside FluidVoice. Launch at login uses the app's existing login item (`SMAppService`).
+
+### Install
+
+The command above downloads the signed-if-available DMG from this fork's GitHub release and copies `FluidVoice.app` to `/Applications`. Until the first tagged release exists, download the `FluidVoice-Studio-dmg` artifact from the **FluidVoice Studio DMG** GitHub Action, or build it:
+
+```bash
+git clone https://github.com/agentik-os/FluidVoice-Studio.git
+cd FluidVoice-Studio
+./build.sh unsigned
+```
+
+A Homebrew cask lives at `packaging/homebrew/Casks/fluidvoice-studio.rb`. From a tap that contains that cask:
+
+```bash
+brew install --cask fluidvoice-studio
+```
+
+CI on a macOS runner builds `FluidVoice.app` into a DMG. If the `APPLE_CERTIFICATE_BASE64` and `APPLE_CERTIFICATE_PASSWORD` secrets are set, the build is signed. Otherwise the DMG is unsigned and macOS will ask you to allow it in Privacy & Security.
+
+Uninstall from the app with **Settings → Audio → Remove Studio login item and pairing**, then delete the app, or run:
+
+```bash
+bash packaging/uninstall-fluidvoice-studio.sh
+```
+
+That removes the app, the login item, the pairing file, and the app's defaults. It also prints how to unload the older `mic-share` LaunchAgents if they are still installed from the earlier experiment. The app does not install those agents.
+
+### Pair a remote microphone
+
+1. Install FluidVoice on both Macs and open it once so discovery starts.
+2. On the Mac that has the microphone, turn on **Share this Mac's microphones** and pick the device. Approve the Mac that asks to use it.
+3. On the Mac you dictate on, choose **Use the microphone of &lt;name&gt;**. Both sides show the same short code. Confirm it on both Macs before any audio is sent.
+4. The paired mic appears in the microphone list as `Device — Mac name`. Pick it like any other input. Dictation reads the remote PCM directly. Nothing is played through a virtual device.
+
+The first approval is manual. After that, the same Mac is remembered. A different physical microphone still needs its own approval. Audio is encrypted with a fresh session key. Connections that are not on a private address (Thunderbolt, LAN, or Tailscale) are refused.
+
+Path order is automatic: **Thunderbolt bridge, then the local network, then Tailscale**. A faster path replaces a slower one without a restart. If the link drops, the listener reconnects. The sharing Mac only opens the HAL input while someone is actually recording, using an input-only AUHAL unit so FluidVoice on that Mac can keep the same microphone.
+
+Tailscale is used only when the `tailscale` CLI is installed. Peers are read from `tailscale status --json`. Bonjour (`_fluidvoice-mic._tcp`, port **18765**) covers the LAN and a Thunderbolt bridge.
+
+### Hotkey from Screen Sharing
+
+The default dictation shortcut is unchanged (Right Option, including Fn tap-to-toggle and hold-to-talk in Automatic mode). The fork also seeds **Control+Option+D** once. The matcher treats an extra Fn/globe flag as part of that chord, and a key whose character is "d" still counts when Screen Sharing or an iPad keyboard does not send the ANSI key code. Removing Control+Option+D in Settings keeps it removed.
+
+**Send clipboard text to a paired Mac** is off until you enable it. It pastes into the other Mac only after pairing, and only if Accessibility is granted there.
+
+### Permissions
+
+The first-run screen watches four permissions and updates as soon as macOS grants them:
+
+| Permission | Why | Settings pane |
+| --- | --- | --- |
+| Microphone | Record, and share a mic you explicitly approve | Privacy → Microphone |
+| Accessibility | Type the transcript | Privacy → Accessibility |
+| Input Monitoring | Hear the global hotkey, including from Screen Sharing | Privacy → Input Monitoring |
+| Local Network | Find Macs on the LAN and Thunderbolt bridge | Privacy → Local Network |
+
+Each row has one line of explanation and opens the matching System Settings pane.
+
+### Try it between agk-studio and mbc-studio
+
+These two Macs are linked by a Thunderbolt bridge (`192.168.3.1` on the bridge) and by Tailscale (`100.122.224.94` for agk-studio, `100.111.101.38` for mbc-studio).
+
+1. Quit any old `mic-share` or hotkey-bridge LaunchAgents so they do not hold port 18751 or rewrite keys. This build uses port 18765 and does not need BlackHole.
+2. Install this fork on both Macs. Turn on **Launch at startup** if a reboot should bring sharing back.
+3. On mbc-studio, share the Jabra (or whichever mic is plugged in) and approve agk-studio when the code appears.
+4. On agk-studio, use mbc-studio's microphone, confirm the same code, then dictate with Right Option or Control+Option+D. The status line should say the path is Thunderbolt.
+5. Unplug the Thunderbolt cable. Within a few seconds the status should move to Tailscale, then back to Thunderbolt when the cable returns. Dictation on mbc-studio itself should still be able to use the Jabra while agk-studio is listening.
+6. From Screen Sharing or an iPad keyboard, press Control+Option+D. It should start and stop dictation even if the event includes the Fn/globe flag.
+
+### Troubleshooting
+
+- **The other Mac never appears.** Grant Local Network, confirm both apps are running, and confirm they are on the same LAN, Thunderbolt bridge, or tailnet. Tailscale peers need the Tailscale app or CLI.
+- **The code never matches.** Decline and try again. A mismatch means the two Macs are not seeing the same handshake.
+- **Dictation is silent.** The remote mic has to be the selected input, the sharer has to be approved for that device, and the link has to say it is paired. Tailscale can be too slow for live dictation when it falls through a relay; Thunderbolt is the realtime path.
+- **Control+Option+D does nothing.** Grant Input Monitoring and Accessibility, then try again. Fn-only Automatic mode is a different shortcut and is unchanged.
+- **macOS says the app is damaged.** The DMG was unsigned. Use **Privacy & Security → Open Anyway**, or sign the build with your Apple Development certificate (`./build.sh`).
 
 ## Support FluidVoice
 

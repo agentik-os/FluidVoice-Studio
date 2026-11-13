@@ -108,6 +108,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Initialize app settings (dock visibility, etc.)
         SettingsStore.shared.initializeAppSettings()
+        if RemoteMicController.shouldStartAutomatically() {
+            RemoteMicController.shared.start()
+        }
         DictationAppSession.shared.start()
         OnboardingAISetupController.live.resumePendingDownload()
         LocalAPIServer.shared.start()
@@ -116,6 +119,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // onboarding initialization is deterministic on brand-new installs.
         let isTrueFirstOpen = AnalyticsIdentityStore.shared.ensureFirstOpenRecorded()
         SettingsStore.shared.bootstrapOnboardingState(isTrueFirstOpen: isTrueFirstOpen)
+        SettingsStore.shared.seedRemoteControlHotkeyIfNeeded()
 
         AnalyticsService.shared.bootstrap()
 
@@ -153,6 +157,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        RemoteMicController.shared.stop()
         #if DEBUG
         if let observer = self.updateUISimulationObserver {
             DistributedNotificationCenter.default().removeObserver(observer)

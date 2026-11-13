@@ -1230,7 +1230,7 @@ final class MenuBarManager: NSObject, ObservableObject, NSMenuDelegate {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.populateMicrophoneMenu(
-                    inputDevices: inputDevices,
+                    inputDevices: RemoteMicAudioCatalog.merge(local: inputDevices),
                     defaultInputUID: defaultInputUID
                 )
             }

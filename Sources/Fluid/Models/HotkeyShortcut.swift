@@ -351,13 +351,26 @@ extension HotkeyShortcut {
         !self.isMouseShortcut && !self.isModifierOnlyShortcut && !self.relevantModifierFlags.isEmpty
     }
 
-    func matchesRecordingShortcut(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Bool {
-        !self.requiresModifierForRecording && self.matches(keyCode: keyCode, modifiers: modifiers)
+    func matchesRecordingShortcut(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, unicode: String? = nil) -> Bool {
+        !self.requiresModifierForRecording && self.matches(keyCode: keyCode, modifiers: modifiers, unicode: unicode)
     }
 
-    func matches(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Bool {
+    func matches(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, unicode: String? = nil) -> Bool {
         guard !self.isMouseShortcut else { return false }
-        return keyCode == self.keyCode && modifiers.intersection(Self.relevantModifierMask) == self.relevantModifierFlags && self.matchesModifierSides(modifiers)
+        let eventFlags = modifiers.rawValue
+        guard RemoteMicHotkeyMatch.keyCodesMatch(
+            shortcutKeyCode: self.keyCode,
+            eventKeyCode: keyCode,
+            unicode: unicode,
+            eventFlags: eventFlags
+        ) else { return false }
+        guard RemoteMicHotkeyMatch.flagsMatch(
+            eventFlags: eventFlags,
+            shortcutFlags: self.relevantModifierFlags.rawValue,
+            relevantMask: Self.relevantModifierMask.rawValue,
+            shortcutKeyCode: self.keyCode
+        ) else { return false }
+        return self.matchesModifierSides(modifiers)
     }
 
     func matchesMouse(button: Int, modifiers: NSEvent.ModifierFlags) -> Bool {

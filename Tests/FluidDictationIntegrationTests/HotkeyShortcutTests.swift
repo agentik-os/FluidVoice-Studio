@@ -512,7 +512,13 @@ final class HotkeyShortcutTests: XCTestCase {
             XCTAssertEqual(try JSONDecoder().decode(HotkeyShortcut.self, from: JSONEncoder().encode(shortcut)), shortcut)
             for incomingFlags in combinations {
                 for keyCode in UInt16(0)...127 {
-                    let shouldMatch = keyCode == 2 && incomingFlags == storedFlags
+                    // Control+Option+D is the Screen Sharing chord. An extra Fn/globe flag still matches it.
+                    let remoteChord = NSEvent.ModifierFlags([.control, .option])
+                    let screenSharingFlags = remoteChord.union(.function)
+                    let shouldMatch = keyCode == 2 && (
+                        incomingFlags == storedFlags
+                            || (storedFlags == remoteChord && incomingFlags == screenSharingFlags)
+                    )
                     XCTAssertEqual(shortcut.matches(keyCode: keyCode, modifiers: incomingFlags), shouldMatch)
                     XCTAssertEqual(shortcut.matches(keyCode: keyCode, modifiers: incomingFlags.union([.capsLock, .numericPad])), shouldMatch)
                 }

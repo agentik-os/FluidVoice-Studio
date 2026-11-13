@@ -587,6 +587,9 @@ struct ContentView: View {
             .onChange(of: self.audioObserver.inputAvailabilityTick) { _, _ in
                 self.refreshInputDevices()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .fluidVoiceStudioRemoteMicCatalog)) { _ in
+                self.refreshInputDevices()
+            }
             .onChange(of: self.settings.dictationScreenContextEnabled) { _, enabled in
                 if !enabled { self.cancelDictationContextCapture() }
             }
@@ -2345,11 +2348,12 @@ struct ContentView: View {
             let outputs = AudioDevice.listOutputDevices()
             let defaultInputUID = AudioDevice.getDefaultInputDevice()?.uid
             DispatchQueue.main.async {
-                self.inputDevices = inputs
+                let mergedInputs = RemoteMicAudioCatalog.merge(local: inputs)
+                self.inputDevices = mergedInputs
                 self.outputDevices = outputs
                 if let selectedInput = self.appServices.microphonePreferenceCoordinator
                     .reconcileMicrophoneSelection(
-                        availableInputs: inputs,
+                        availableInputs: mergedInputs,
                         defaultInputUID: defaultInputUID
                     )
                 {
@@ -2364,10 +2368,11 @@ struct ContentView: View {
             let inputs = AudioDevice.listInputDevicesRefreshingLiveness()
             let defaultInputUID = AudioDevice.getDefaultInputDevice()?.uid
             DispatchQueue.main.async {
-                self.inputDevices = inputs
+                let mergedInputs = RemoteMicAudioCatalog.merge(local: inputs)
+                self.inputDevices = mergedInputs
                 if let selectedInput = self.appServices.microphonePreferenceCoordinator
                     .reconcileMicrophoneSelection(
-                        availableInputs: inputs,
+                        availableInputs: mergedInputs,
                         defaultInputUID: defaultInputUID
                     )
                 {
