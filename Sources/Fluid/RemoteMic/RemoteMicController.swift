@@ -8,6 +8,7 @@
 
 import AppKit
 import ApplicationServices
+import Combine
 import CoreAudio
 import Foundation
 import Network
@@ -742,14 +743,25 @@ final class RemoteMicController: ObservableObject {
     }
 
     private func refreshPrompts() {
-        self.incomingPrompt = self.sessions.compactMap { session in
-            guard session.isInitiator == false, case let .awaitingConsent(code, peerName, deviceName, _) = session.machine.phase else { return nil }
-            return RemoteMicPrompt(id: session.token, peerName: peerName, code: code, deviceName: deviceName, isIncoming: true)
-        }.first
-        self.outgoingPrompt = self.sessions.compactMap { session in
-            guard session.isInitiator, case let .awaitingConsent(code, peerName, deviceName, _) = session.machine.phase else { return nil }
-            return RemoteMicPrompt(id: session.token, peerName: peerName, code: code, deviceName: deviceName, isIncoming: false)
-        }.first
+        var incoming: RemoteMicPrompt?
+        var outgoing: RemoteMicPrompt?
+        for session in self.sessions {
+            guard case let .awaitingConsent(code, peerName, deviceName, _) = session.machine.phase else { continue }
+            let prompt = RemoteMicPrompt(
+                id: session.token,
+                peerName: peerName,
+                code: code,
+                deviceName: deviceName,
+                isIncoming: session.isInitiator == false
+            )
+            if session.isInitiator {
+                if outgoing == nil { outgoing = prompt }
+            } else if incoming == nil {
+                incoming = prompt
+            }
+        }
+        self.incomingPrompt = incoming
+        self.outgoingPrompt = outgoing
     }
 
     private func sendSecure(_ type: RemoteMicSecureType, payload: Data, session: RemoteMicSession) {

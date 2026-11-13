@@ -21,4 +21,13 @@ nonisolated enum RemoteMicHotkeyEvent {
         guard actual > 0 else { return nil }
         return String(utf16CodeUnits: units, count: actual)
     }
+
+    static func dictationKey(_ raw: UInt16, _ unicode: String?, _ flags: UInt, _ held: Bool) -> UInt16 {
+        RemoteMicHotkeyMatch.canonicalEventKeyCode(
+            rawKeyCode: raw,
+            unicode: unicode,
+            eventFlags: flags,
+            activeRemotePress: held
+        )
+    }
 }

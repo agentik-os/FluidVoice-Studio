@@ -9,7 +9,14 @@ repo="agentik-os/FluidVoice-Studio"
 asset="FluidVoice-Studio-${version}.dmg"
 url="https://github.com/${repo}/releases/download/v${version}/${asset}"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+mounted=0
+cleanup() {
+    if [ "$mounted" = "1" ]; then
+        hdiutil detach "$work/mnt" >/dev/null 2>&1 || hdiutil detach "$work/mnt" -force >/dev/null 2>&1 || true
+    fi
+    rm -rf "$work"
+}
+trap cleanup EXIT
 
 echo "Downloading ${url}"
 if ! curl -fL --retry 3 --retry-delay 2 "$url" -o "$work/$asset"; then
@@ -28,15 +35,29 @@ EOF
 fi
 
 hdiutil attach "$work/$asset" -nobrowse -mountpoint "$work/mnt" >/dev/null
+mounted=1
 app="$(find "$work/mnt" -maxdepth 2 -name '*.app' -print -quit)"
 if [ -z "$app" ]; then
     echo "The DMG does not contain an app." >&2
-    hdiutil detach "$work/mnt" >/dev/null || true
     exit 1
 fi
-rm -rf "/Applications/$(basename "$app")"
-cp -R "$app" /Applications/
-hdiutil detach "$work/mnt" >/dev/null || true
-xattr -dr com.apple.quarantine "/Applications/$(basename "$app")" 2>/dev/null || true
-echo "Installed /Applications/$(basename "$app")"
-open -a "$(basename "$app" .app)" || true
+name="$(basename "$app")"
+destination="/Applications/$name"
+staging="/Applications/.${name}.installing"
+rm -rf "$staging"
+cp -R "$app" "$staging"
+if [ -d "$destination" ]; then
+    rm -rf "${destination}.previous"
+    mv "$destination" "${destination}.previous"
+fi
+if ! mv "$staging" "$destination"; then
+    if [ -d "${destination}.previous" ]; then
+        mv "${destination}.previous" "$destination"
+    fi
+    echo "Could not replace $destination" >&2
+    exit 1
+fi
+rm -rf "${destination}.previous"
+xattr -dr com.apple.quarantine "$destination" 2>/dev/null || true
+echo "Installed $destination"
+open -a "${name%.app}" || true

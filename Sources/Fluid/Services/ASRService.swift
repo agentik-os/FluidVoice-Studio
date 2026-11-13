@@ -2092,7 +2092,8 @@ final class ASRService: ObservableObject {
         excluding excludedUIDs: Set<String>
     ) -> AudioDevice.Device? {
         let remote = RemoteMicController.shared.selectableInputDevices()
-        if let forcingInputUID, RemoteMicDeviceIdentity.isRemote(forcingInputUID) {
+        if let forcingInputUID {
+            guard RemoteMicDeviceIdentity.isRemote(forcingInputUID) else { return nil }
             if excludedUIDs.contains(forcingInputUID) { return nil }
             return remote.first { $0.uid == forcingInputUID }
                 ?? RemoteMicAudioCatalog.makeDevice(uid: forcingInputUID, name: "Remote microphone", alive: false)
@@ -2115,20 +2116,25 @@ final class ASRService: ObservableObject {
             )
         }
         let pipeline = self.audioCapturePipeline
-        try await RemoteMicController.shared.startListening(
-            peerID: parsed.peerID,
-            deviceUID: parsed.deviceUID
-        ) { samples, sampleRate in
-            samples.withUnsafeBufferPointer { buffer in
-                guard let base = buffer.baseAddress else { return }
-                pipeline.handle(
-                    samples: base,
-                    frameCount: buffer.count,
-                    sampleRate: sampleRate,
-                    inputHostTime: mach_absolute_time(),
-                    inputSampleTime: -1
-                )
+        do {
+            try await RemoteMicController.shared.startListening(
+                peerID: parsed.peerID,
+                deviceUID: parsed.deviceUID
+            ) { samples, sampleRate in
+                samples.withUnsafeBufferPointer { buffer in
+                    guard let base = buffer.baseAddress else { return }
+                    pipeline.handle(
+                        samples: base,
+                        frameCount: buffer.count,
+                        sampleRate: sampleRate,
+                        inputHostTime: mach_absolute_time(),
+                        inputSampleTime: -1
+                    )
+                }
             }
+        } catch {
+            RemoteMicController.shared.stopListening()
+            throw error
         }
         self.activeAudioCaptureBackend = .remoteMic
         self.audioStartAttemptInputUID = device.uid

@@ -113,7 +113,10 @@ struct RemoteMicSettingsSection: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .onAppear {
+        .task {
+            await AudioStartupGate.shared.scheduleOpenAfterInitialUISettled()
+            await AudioStartupGate.shared.waitUntilOpen()
+            guard Task.isCancelled == false else { return }
             self.localMics = AudioDevice.listInputDevices().filter { RemoteMicDeviceIdentity.isRemote($0.uid) == false }
         }
     }

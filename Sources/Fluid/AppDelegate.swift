@@ -119,6 +119,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // onboarding initialization is deterministic on brand-new installs.
         let isTrueFirstOpen = AnalyticsIdentityStore.shared.ensureFirstOpenRecorded()
         SettingsStore.shared.bootstrapOnboardingState(isTrueFirstOpen: isTrueFirstOpen)
+        SettingsStore.shared.seedRemoteControlHotkeyIfNeeded()
 
         AnalyticsService.shared.bootstrap()
 

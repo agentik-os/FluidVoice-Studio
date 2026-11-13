@@ -175,24 +175,39 @@ struct RemoteMicLogicTests {
         let chord = RemoteMicHotkeyMatch.controlFlag | RemoteMicHotkeyMatch.optionFlag
         let withGlobe = chord | RemoteMicHotkeyMatch.functionFlag
         Check.ok(
-            RemoteMicHotkeyMatch.flagsMatch(eventFlags: withGlobe, shortcutFlags: chord, relevantMask: mask, shortcutIsModifierOnly: false),
+            RemoteMicHotkeyMatch.flagsMatch(eventFlags: withGlobe, shortcutFlags: chord, relevantMask: mask, shortcutKeyCode: 2),
             "ctrl+opt+D ignores the extra Fn flag"
         )
         Check.ok(
-            RemoteMicHotkeyMatch.flagsMatch(eventFlags: chord, shortcutFlags: chord, relevantMask: mask, shortcutIsModifierOnly: false),
+            RemoteMicHotkeyMatch.flagsMatch(eventFlags: chord, shortcutFlags: chord, relevantMask: mask, shortcutKeyCode: 2),
             "ctrl+opt+D without Fn"
         )
         Check.ok(
-            RemoteMicHotkeyMatch.flagsMatch(eventFlags: RemoteMicHotkeyMatch.controlFlag, shortcutFlags: chord, relevantMask: mask, shortcutIsModifierOnly: false) == false,
+            RemoteMicHotkeyMatch.flagsMatch(eventFlags: RemoteMicHotkeyMatch.controlFlag, shortcutFlags: chord, relevantMask: mask, shortcutKeyCode: 2) == false,
             "ctrl alone does not match"
         )
         Check.ok(
-            RemoteMicHotkeyMatch.flagsMatch(eventFlags: RemoteMicHotkeyMatch.functionFlag, shortcutFlags: 0, relevantMask: mask, shortcutIsModifierOnly: true) == false,
+            RemoteMicHotkeyMatch.flagsMatch(
+                eventFlags: RemoteMicHotkeyMatch.functionFlag,
+                shortcutFlags: 0,
+                relevantMask: mask,
+                shortcutKeyCode: 63
+            ) == false,
             "Fn-only Automatic mode still requires the function flag"
+        )
+        let optionR = RemoteMicHotkeyMatch.optionFlag
+        Check.ok(
+            RemoteMicHotkeyMatch.flagsMatch(
+                eventFlags: optionR | RemoteMicHotkeyMatch.functionFlag,
+                shortcutFlags: optionR,
+                relevantMask: mask,
+                shortcutKeyCode: 15
+            ) == false,
+            "other shortcuts still require an exact Fn match"
         )
         let functionChord = chord | RemoteMicHotkeyMatch.functionFlag
         Check.ok(
-            RemoteMicHotkeyMatch.flagsMatch(eventFlags: chord, shortcutFlags: functionChord, relevantMask: mask, shortcutIsModifierOnly: false) == false,
+            RemoteMicHotkeyMatch.flagsMatch(eventFlags: chord, shortcutFlags: functionChord, relevantMask: mask, shortcutKeyCode: 2) == false,
             "a shortcut that includes Fn still requires it"
         )
         Check.ok(

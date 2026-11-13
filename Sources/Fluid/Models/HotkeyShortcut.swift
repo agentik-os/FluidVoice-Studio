@@ -368,7 +368,7 @@ extension HotkeyShortcut {
             eventFlags: eventFlags,
             shortcutFlags: self.relevantModifierFlags.rawValue,
             relevantMask: Self.relevantModifierMask.rawValue,
-            shortcutIsModifierOnly: self.isModifierOnlyShortcut
+            shortcutKeyCode: self.keyCode
         ) else { return false }
         return self.matchesModifierSides(modifiers)
     }

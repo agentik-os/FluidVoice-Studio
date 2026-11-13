@@ -23,15 +23,20 @@ nonisolated enum RemoteMicHotkeyMatch {
         eventFlags: UInt,
         shortcutFlags: UInt,
         relevantMask: UInt,
-        shortcutIsModifierOnly: Bool
+        shortcutKeyCode: UInt16
     ) -> Bool {
         var event = eventFlags & relevantMask
         let shortcut = shortcutFlags & relevantMask
-        let shortcutWantsFunction = self.contains(shortcut, self.functionFlag)
-        if shortcutIsModifierOnly == false, shortcutWantsFunction == false {
+        if self.isRemoteControlChord(keyCode: shortcutKeyCode, shortcutFlags: shortcut) {
             event &= ~self.functionFlag
         }
         return event == shortcut
+    }
+
+    static func isRemoteControlChord(keyCode: UInt16, shortcutFlags: UInt) -> Bool {
+        let flags = shortcutFlags & self.relevantMask
+        let chord = self.controlFlag | self.optionFlag
+        return keyCode == self.remoteControlKeyCode && flags == chord
     }
 
     static func keyCodesMatch(

@@ -22,7 +22,16 @@ enum RemoteMicPermissionProbe {
     static func request(_ kind: RemoteMicPermissionKind) {
         switch kind {
         case .microphone:
-            AVCaptureDevice.requestAccess(for: .audio) { _ in }
+            switch AVCaptureDevice.authorizationStatus(for: .audio) {
+            case .notDetermined:
+                AVCaptureDevice.requestAccess(for: .audio) { _ in }
+            case .denied, .restricted:
+                self.open(kind)
+            case .authorized:
+                break
+            @unknown default:
+                self.open(kind)
+            }
         case .accessibility:
             self.promptForAccessibility()
             self.open(kind)
