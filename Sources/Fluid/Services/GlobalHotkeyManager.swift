@@ -1271,8 +1271,14 @@ final class GlobalHotkeyManager: NSObject {
             return Unmanaged.passUnretained(event)
         }
 
-        let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
         let eventModifiers = Self.modifierFlags(from: event.flags)
+        let typed = RemoteMicHotkeyEvent.unicode(from: event)
+        let keyCode = RemoteMicHotkeyMatch.canonicalEventKeyCode(
+            rawKeyCode: UInt16(event.getIntegerValueField(.keyboardEventKeycode)),
+            unicode: typed,
+            eventFlags: eventModifiers.rawValue,
+            activeRemotePress: self.activePrimaryShortcutPress?.keyboardKeyCode == RemoteMicHotkeyMatch.remoteControlKeyCode
+        )
         let isAutorepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
 
         if self.handleMeetingRecordingShortcut(type: type, keyCode: keyCode, modifiers: eventModifiers, isAutorepeat: isAutorepeat) {
@@ -1484,7 +1490,7 @@ final class GlobalHotkeyManager: NSObject {
             }
 
             // Then check transcription hotkeys
-            if let shortcut = self.primaryShortcuts.first(where: { $0.matchesRecordingShortcut(keyCode: keyCode, modifiers: eventModifiers) }) {
+            if let shortcut = self.primaryShortcuts.first(where: { $0.matchesRecordingShortcut(keyCode: keyCode, modifiers: eventModifiers, unicode: typed) }) {
                 guard !isAutorepeat else { return nil }
                 guard self.beginPrimaryShortcutPress(.keyboard(shortcut)) else { return nil }
                 self.handlePrimaryDictationTriggerDown()

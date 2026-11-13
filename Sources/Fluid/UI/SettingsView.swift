@@ -1095,6 +1095,8 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             self.microphonePrioritySection
                                 .settingsSearchTarget(.inputDevicePriority)
+
+                            RemoteMicSettingsSection()
                                 .onChange(of: self.inputDevices) { _, newDevices in
                                     let defaultInput = AudioDevice.getDefaultInputDevice()
                                     self.cachedDefaultInputUID = defaultInput?.uid ?? ""

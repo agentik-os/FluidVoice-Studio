@@ -1186,7 +1186,7 @@ struct OnboardingFlowView: View {
                                 .lineSpacing(4)
                                 .padding(.bottom, 16)
 
-                            Text("Two quick permissions make dictation work anywhere.")
+                            Text("Permissions let FluidVoice dictate, hear the hotkey, and find nearby Macs.")
                                 .font(.fluidSystem(size: 15, weight: .medium))
                                 .foregroundStyle(Color.white.opacity(0.62))
                                 .padding(.bottom, 28)
@@ -1234,6 +1234,12 @@ struct OnboardingFlowView: View {
                                         .foregroundStyle(Color.white.opacity(0.42))
                                         .padding(.top, 2)
                                 }
+
+                                RemoteMicPermissionList(
+                                    style: .onboarding,
+                                    kinds: [.inputMonitoring, .localNetwork]
+                                )
+                                .frame(width: 560)
                             }
                             .frame(width: 560)
                         }

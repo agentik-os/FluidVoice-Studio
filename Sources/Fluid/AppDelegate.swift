@@ -108,6 +108,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Initialize app settings (dock visibility, etc.)
         SettingsStore.shared.initializeAppSettings()
+        if RemoteMicController.shouldStartAutomatically() {
+            RemoteMicController.shared.start()
+        }
         DictationAppSession.shared.start()
         OnboardingAISetupController.live.resumePendingDownload()
         LocalAPIServer.shared.start()
@@ -153,6 +156,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        RemoteMicController.shared.stop()
         #if DEBUG
         if let observer = self.updateUISimulationObserver {
             DistributedNotificationCenter.default().removeObserver(observer)

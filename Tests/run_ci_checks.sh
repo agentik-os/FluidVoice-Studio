@@ -103,6 +103,7 @@ run_check meeting-end-countdown python3 Tests/run_meeting_end_countdown_tests.py
 run_check meeting-picker python3 Tests/run_meeting_picker_tests.py
 run_check meeting-model-policy python3 Tests/run_meeting_model_policy_tests.py
 run_check meeting-computer-audio python3 Tests/run_meeting_computer_audio_tests.py
+run_check remote-mic sh Tests/run_remote_mic_tests.sh
 
 task_phase="Xcode build and tests"
 task_build_args=(test -project Fluid.xcodeproj -scheme Fluid

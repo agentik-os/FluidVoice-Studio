@@ -1608,6 +1608,7 @@ final class ASRService: ObservableObject {
         case none
         case directCoreAudio
         case audioEngine
+        case remoteMic
     }
 
     private struct AudioRouteRecoveryRequest {
@@ -1740,6 +1741,10 @@ final class ASRService: ObservableObject {
         let handoffGeneration = self.meetingAudioHandoffGeneration
         guard self.micStatus == .authorized else {
             DebugLogger.shared.debug("Audio engine prewarm skipped - mic not authorized", source: "ASRService")
+            return
+        }
+        if self.remoteMicrophoneForCapture(forcingInputUID: nil, excluding: []) != nil {
+            DebugLogger.shared.debug("Audio capture prewarm skipped - remote microphone selected", source: "ASRService")
             return
         }
         guard self.isRunning == false,
@@ -1898,6 +1903,13 @@ final class ASRService: ObservableObject {
         forcingInputUID: String? = nil,
         onInputSnapshotRead: @MainActor (Int) -> Void = { _ in }
     ) async throws {
+        if let remote = self.remoteMicrophoneForCapture(
+            forcingInputUID: forcingInputUID,
+            excluding: excludedInputUIDs
+        ) {
+            try await self.startRemoteMicCapture(remote)
+            return
+        }
         let startGeneration = self.audioCaptureStartGeneration
         let previousAttemptIdentity = self.audioStartAttemptInputUID.map {
             AudioCaptureIdlePolicy.CaptureAttemptIdentity(
@@ -2067,10 +2079,64 @@ final class ASRService: ObservableObject {
                 "STOP_TRACE backend=audioEngine removeTapMs=\(Int((tapStopFinishedAt - tapStopStartedAt) * 1000)) engineStopMs=\(Int((ProcessInfo.processInfo.systemUptime - tapStopFinishedAt) * 1000))",
                 source: "StopTiming"
             )
+        case .remoteMic:
+            RemoteMicController.shared.stopListening()
         case .none:
             break
         }
         self.activeAudioCaptureBackend = .none
+    }
+
+    private func remoteMicrophoneForCapture(
+        forcingInputUID: String?,
+        excluding excludedUIDs: Set<String>
+    ) -> AudioDevice.Device? {
+        let remote = RemoteMicController.shared.selectableInputDevices()
+        if let forcingInputUID, RemoteMicDeviceIdentity.isRemote(forcingInputUID) {
+            if excludedUIDs.contains(forcingInputUID) { return nil }
+            return remote.first { $0.uid == forcingInputUID }
+                ?? RemoteMicAudioCatalog.makeDevice(uid: forcingInputUID, name: "Remote microphone", alive: false)
+        }
+        let local = AudioDevice.listInputDevices()
+        guard let selected = self.resolvedInputDeviceForCapture(
+            availableInputs: local + remote,
+            defaultInputUID: AudioDevice.getDefaultInputDevice()?.uid,
+            excluding: excludedUIDs
+        ), RemoteMicDeviceIdentity.isRemote(selected.uid) else { return nil }
+        return selected
+    }
+
+    private func startRemoteMicCapture(_ device: AudioDevice.Device) async throws {
+        guard let parsed = RemoteMicDeviceIdentity.parse(device.uid) else {
+            throw NSError(
+                domain: "ASRService",
+                code: -4,
+                userInfo: [NSLocalizedDescriptionKey: "The remote microphone identifier is invalid."]
+            )
+        }
+        let pipeline = self.audioCapturePipeline
+        try await RemoteMicController.shared.startListening(
+            peerID: parsed.peerID,
+            deviceUID: parsed.deviceUID
+        ) { samples, sampleRate in
+            samples.withUnsafeBufferPointer { buffer in
+                guard let base = buffer.baseAddress else { return }
+                pipeline.handle(
+                    samples: base,
+                    frameCount: buffer.count,
+                    sampleRate: sampleRate,
+                    inputHostTime: mach_absolute_time(),
+                    inputSampleTime: -1
+                )
+            }
+        }
+        self.activeAudioCaptureBackend = .remoteMic
+        self.audioStartAttemptInputUID = device.uid
+        self.audioStartAttemptInputName = device.name
+        self.audioStartAttemptIsBluetooth = false
+        self.audioStartAttemptIsInternalMicrophone = false
+        AppServices.shared.microphonePreferenceCoordinator.reportResolvedSelection(uid: device.uid, name: device.name)
+        self.benchmarkLog("audio_backend kind=remote_mic device=\(device.name)")
     }
 
     private var inputFormat: AVAudioFormat?
